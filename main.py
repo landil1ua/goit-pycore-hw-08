@@ -12,7 +12,7 @@ def input_error(func):
     def inner(*args, **kwargs):
         try:
             return func(*args, **kwargs)
-        except KeyError:
+        except (KeyError, AttributeError):
             return "Contact not found"
         except ValueError:
             return "Give me right arguments please."
@@ -27,22 +27,20 @@ def add_contact(args, book: AddressBook):
     Функція додавання нового контакту
     Args:
         args (list): ім'я та номер телефону
-        book (AddressBook): адресна книга
+        book(AddressBook): адресна книга
     Returns:
         (str): результат операції
     '''
-    if len(args) != 2:
-        raise ValueError()
     name, phone, *_ = args
     record = book.find(name)
-    message = "Contact updated."
-    if record is None:
-        record = Record(name)
-        book.add_record(record)
-        message = "Contact added."
-    if phone:
+    if record:
         record.add_phone(phone)
-    return message
+        return 'Phone added.'
+    else:
+        record = Record(name)
+        record.add_phone(phone)
+        book.add_record(record)
+        return 'Contact added.'
 
 
 @input_error
@@ -51,18 +49,14 @@ def change_contact(args, book: AddressBook):
     Функція зміни існуючого контакту
     Args:
         args (list): ім'я та номер телефону
-        contacts(dict): словник із контактами
+        book(AddressBook): адресна книга
     Returns:
         (str): результат операції
     '''
-    if len(args) != 3:
-        raise ValueError()
     name, old_phone, new_phone = args
-    record: Record = book.find(name)
-    if not record:
-        raise KeyError()
+    record = book.find(name)
     record.edit_phone(old_phone, new_phone)
-    return 'Contact updated'
+    return 'Contact updated.'
 
 
 @input_error
@@ -71,42 +65,32 @@ def show_phone(args, book: AddressBook):
     Функція пошуку номеру телефону за ім'ям
     Args:
         args (list): ім'я
-        book (AddressBook): адресна книга
+        book(AddressBook): адресна книга
     Returns:
         (str): результат операції
     '''
-    if not args:
-        raise IndexError()
     name, *_ = args
     record = book.find(name)
-    if record is None:
-        raise KeyError()
-    phones = record.phones
-    if not phones:
-        raise KeyError()
-    return f"Name: {name}, Phones: " + ", ".join(p.value for p in phones)
+    if record.phones:
+        phones = ", ".join(p.value for p in record.phones)
+        return f'{record.name.value}: {phones}'
+    else:
+        return "Contact has no phones."
 
 
 def show_all(book: AddressBook):
     '''
     Функція виводу усіх доданих контактів
     Args:
-        contacts(dict): словник із контактами
+        book(AddressBook): адресна книга
     Returns:
         (str): результат операції
     '''
     if not book.data:
         return 'No added contacts'
-    lines = []
 
-    for name in sorted(book.data):
-        record = book.find(name)
-        phones_str = "No phones"
-        if record.phones:
-            phones_str = ", ".join(p.value for p in record.phones)
-        phones = phones_str
-        birthday = record.birthday if record.birthday else "No birthday"
-        lines.append(f"{name}: Phones: [{phones}], Birthday: {birthday}")
+    records = sorted(book.data.values(), key=lambda r: r.name.value)
+    lines = [str(record) for record in records]
     return "\n".join(lines)
 
 
@@ -118,11 +102,13 @@ def parse_input(user_input):
     Returns:
         (str, list): назва команди, аргументи команди
     '''
-    if not user_input or not user_input.strip():
+    user_input = user_input.strip()
+    if not user_input:
         return '', []
 
-    cmd, *args = user_input.split()
-    cmd = cmd.strip().lower()
+    parts = user_input.split()
+    cmd = parts[0].lower()
+    args = parts[1:]
 
     return cmd, args
 
@@ -137,12 +123,8 @@ def add_birthday(args, book: AddressBook):
     Returns:
         (str): результат операції
     '''
-    if len(args) != 2:
-        raise ValueError()
     name, birthday = args
     record: Record = book.find(name)
-    if record is None:
-        raise KeyError()
     record.add_birthday(birthday)
     return 'Birthday added.'
 
@@ -157,23 +139,18 @@ def show_birthday(args, book: AddressBook):
     Returns:
         (str): результат операції
     '''
-    if not args:
-        raise IndexError()
     name, *_ = args
     record = book.find(name)
-    if record is None:
-        raise KeyError()
     if record.birthday is None:
         return f"Birthday for {name} is not set."
     return f"{name}'s birthday: {record.birthday}"
 
 
 @input_error
-def birthdays(args, book: AddressBook):
+def birthdays(book: AddressBook):
     '''
     Функція показу днів народження на наступний тиждень
     Args:
-        args (list): не використовується
         book (AddressBook): адресна книга
     Returns:
         (str): результат операції
@@ -183,8 +160,8 @@ def birthdays(args, book: AddressBook):
         return "No birthdays in the next week."
 
     result = "Upcoming birthdays:\n"
-    for record in upcoming:
-        result += f"{record['name']}: {record['congratulation_date']}\n"
+    for item in upcoming:
+        result += f"{item['name']}: {item['congratulation_date']}\n"
     return result.strip()
 
 
